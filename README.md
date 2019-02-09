@@ -1,2 +1,2 @@
-# regenerate
+# lingofunk-regenerate
 Regenerate me
