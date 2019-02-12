@@ -8,6 +8,9 @@ import torch.nn.functional as F
 import torch.autograd as autograd
 from tqdm import tqdm
 
+project_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+sys.path.insert(0, project_folder)
+
 from lingofunk_regenerate.datasets import YelpDataset as Dataset
 # from lingofunk_regenerate.datasets import HaikuDataset as Dataset
 from lingofunk_regenerate.model import RNN_VAE
