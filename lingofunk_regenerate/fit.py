@@ -24,10 +24,9 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--gpu', default=False, action='store_true',
                     help='whether to run in the GPU')
 parser.add_argument('--model', type=str, required=True,
-                    choices=[
-                        'vae (base vae as in Bowman, 2015)',
-                        'discriminator (using Kim, 2014 architecture and training procedure is as in Hu, 2017)'],
-                    help='which model to train')
+                    choices=['vae', 'ctextgen'],
+                    help='which model to train: vae - base vae as in Bowman, 2015 ' +
+                         'or discriminator - using Kim, 2014 architecture and training procedure is as in Hu, 2017)')
 parser.add_argument('--save', default=False, action='store_true',
                     help='whether to save model or not')
 
@@ -243,7 +242,7 @@ def save_discriminator():
 if __name__ == '__main__':
     if args.model == 'vae':
         fit_callback, save_callback = fit_vae, save_vae
-    elif args.model == 'discriminator':
+    elif args.model == 'ctextgen':
         fit_callback, save_callback = fit_discriminator, save_discriminator
     else:
         raise ValueError('Unknown model name "{}"'.format(args.model))
