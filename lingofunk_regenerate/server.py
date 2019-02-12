@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify
 import tensorflow as tf
 import numpy as np
 import torch
+import re
 
 project_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 sys.path.insert(0, project_folder)
@@ -54,6 +55,10 @@ def regenerate():
     data = request.get_json()
 
     sentence = data['text']
+    sentence = re.sub('\W', ' ', sentence)
+
+    logger.debug('Sentence: {}'.format(sentence))
+
     angle = float(data['angle'])
     radius = float(data['radius'])
     disturbance_fraction = radius / 100
@@ -87,12 +92,12 @@ def regenerate():
     # else:
     #     c = model.forward_discriminator(sentence.transpose(0, 1))
 
-    temp = 1.0
+    temp = 0.5
 
     regenerated_sentence = None
     num_hits_best = None
 
-    for i in range(10):
+    for i in range(20):
         logger.debug('iter {}:'.format(i))
 
         z = model.sample_z(mu, logvar)
@@ -102,15 +107,14 @@ def regenerate():
         sampled_idxs = model.sample_sentence(z, c, temp=temp)
         sampled_sentence = dataset.idxs2sentence(sampled_idxs)
 
-        min_dim = min(sentence.numel(), len(sampled_idxs))
-        logger.debug('min dim {}:'.format(min_dim))
-
         sampled_idxs = torch.from_numpy(
             np.array(sampled_idxs).reshape(-1, mbsize)
         )
 
-        num_hits = np.sum(sentence.numpy()[:min_dim] ==
-                          sampled_idxs.numpy()[:min_dim])
+        num_hits = len(
+           set(sentence.numpy().flatten()).intersection(
+               set(sampled_idxs.numpy().flatten()))
+        )
 
         logger.debug('sampled sentence: {}'.format(sampled_sentence))
         logger.debug('num hits: {}'.format(num_hits))
