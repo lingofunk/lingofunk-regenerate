@@ -6,41 +6,22 @@ import time
 from flask import Flask, request, jsonify
 import tensorflow as tf
 import numpy as np
-import math
-import os
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.autograd as autograd
-import torch.optim as optim
-import numpy as np
-from torch.autograd import Variable
-
-from lingofunk_regenerate.datasets import YelpDataset as Dataset
-# from lingofunk_regenerate.datasets import HaikuDataset as Dataset
-from lingofunk_regenerate.model import RNN_VAE
-from lingofunk_regenerate.constants import BATCH_SIZE
-from lingofunk_regenerate.constants import H_DIM
-from lingofunk_regenerate.constants import Z_DIM
-from lingofunk_regenerate.constants import C_DIM
-from lingofunk_regenerate.constants import LR
-from lingofunk_regenerate.constants import NUM_ITERATIONS_LR_DECAY
-from lingofunk_regenerate.constants import NUM_ITERATIONS_TOTAL
-from lingofunk_regenerate.constants import NUM_ITERATIONS_LOG
-from lingofunk_regenerate.constants import DROPOUT
-from lingofunk_regenerate.utils import log as _log
-from lingofunk_regenerate import tests as tests
-
-import random
-import time
-
 
 project_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 sys.path.insert(0, project_folder)
 
-
+from lingofunk_regenerate.datasets import YelpDataset as Dataset
+# from lingofunk_regenerate.datasets import HaikuDataset as Dataset
+from lingofunk_regenerate.model import RNN_VAE
+from lingofunk_regenerate.constants import H_DIM
+from lingofunk_regenerate.constants import Z_DIM
+from lingofunk_regenerate.constants import C_DIM
+from lingofunk_regenerate.constants import DROPOUT
 from lingofunk_regenerate.constants import MODELS_FOLDER_PATH
 from lingofunk_regenerate.constants import PORT_DEFAULT
+from lingofunk_regenerate.utils import log as _log
+from lingofunk_regenerate import tests as tests
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -63,18 +44,19 @@ def hello_world():
     return 'Hello World!'
 
 
-@app.route('/regenerate', methods=['GET', 'POST'])
-def generate_discrete():
+@app.route('/regenerate', methods=['POST'])
+def regenerate():
     logger.debug('request: {}'.format(request.get_json()))
 
     global model
     global dataset
 
-    # data = request.get_json()
-    # text_style = data.get('style-name')
+    data = request.get_json()
 
-    sentence = request.args['text']
-    angle = float(request.args['angle'])
+    sentence = data['text']
+    angle = float(data['angle'])
+    radius = float(data['radius'])
+    disturbance_fraction = radius / 100
 
     if angle > 180:
         angle = 360 - angle
@@ -83,11 +65,13 @@ def generate_discrete():
         angle = angle
         sign = +1
 
-    radius = float(request.args['radius'])
     index = int(np.round(
         angle / 180 * (model.z_dim - 1)
     ))
-    disturbance = sign * radius
+    disturbance_fraction_signed = sign * disturbance_fraction
+
+    logger.debug('index to disturb: {}'.format(index))
+    logger.debug('disturbance fraction: {}'.format(disturbance_fraction_signed))
 
     mbsize = 1
 
@@ -105,24 +89,39 @@ def generate_discrete():
 
     temp = 1.0
 
-    regenerated_sentence_best = None
+    regenerated_sentence = None
     num_hits_best = None
 
     for i in range(10):
-        z = model.sample_z(mu, logvar)
-        z[0, index] += disturbance * abs(z[0, index])
+        logger.debug('iter {}:'.format(i))
 
-        sampled = model.sample_sentence(z, c, temp=temp)
-        regenerated_sentence = dataset.idxs2sentence(sampled)
-        num_hits = np.sum(sentence.numpy() == regenerated_sentence.numpy())
+        z = model.sample_z(mu, logvar)
+        disturbance = disturbance_fraction_signed * abs(z[0, index])
+        z[0, index] += disturbance
+
+        sampled_idxs = model.sample_sentence(z, c, temp=temp)
+        sampled_sentence = dataset.idxs2sentence(sampled_idxs)
+
+        min_dim = min(sentence.numel(), len(sampled_idxs))
+        logger.debug('min dim {}:'.format(min_dim))
+
+        sampled_idxs = torch.from_numpy(
+            np.array(sampled_idxs).reshape(-1, mbsize)
+        )
+
+        num_hits = np.sum(sentence.numpy()[:min_dim] ==
+                          sampled_idxs.numpy()[:min_dim])
+
+        logger.debug('sampled sentence: {}'.format(sampled_sentence))
+        logger.debug('num hits: {}'.format(num_hits))
 
         if num_hits_best is None or num_hits > num_hits_best:
             num_hits_best = num_hits
-            regenerated_sentence_best = regenerated_sentence
+            regenerated_sentence = sampled_sentence
 
-    log('Regenerated sentence: ' + regenerated_sentence_best + '\n')
+    log('Regenerated sentence: ' + regenerated_sentence + '\n')
 
-    return jsonify(new_text=regenerated_sentence_best)
+    return jsonify({'new-text': regenerated_sentence})
 
 
 def _parse_args():

@@ -1,0 +1,16 @@
+torch
+torchtext
+torchvision
+tensorboard
+tensorflow
+keras
+scikit-learn
+tqdm
+spacy
+numpy
+scipy
+six
+keras_applications
+keras_preprocessing
+flask
+pandas

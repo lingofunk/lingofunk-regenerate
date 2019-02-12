@@ -5,8 +5,9 @@ from torchtext.vocab import GloVe
 from torchtext.data import Field
 from torchtext.data import TabularDataset
 
+project_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+data_folder = os.path.join(project_folder, 'data')
 
-datasets.SST
 
 # 15
 filter_func = lambda ex: len(ex.text) <= 30 and ex.label != 'neutral'
@@ -28,7 +29,7 @@ class Dataset:
 
         train, val, test = get_data_cb(self.TEXT, self.LABEL)
 
-        self.TEXT.build_vocab(train, vectors=GloVe('6B', dim=emb_dim))
+        self.TEXT.build_vocab(train, vectors=GloVe('6B', dim=emb_dim, cache=data_folder))
         self.LABEL.build_vocab(train)
 
         # print(self.TEXT.vocab)
@@ -291,7 +292,6 @@ tokenize = lambda x: x.split(' ')
 TEXT = Field(sequential=True, tokenize=tokenize, lower=True)
 LABEL = Field(sequential=False, use_vocab=False)
 
-data_folder = os.path.join('/home/student/Workspace/lingofunk/lingofunk-regenerate/data')
 cols = ['text', 'stars']
 
 all_datafields = [('stars', LABEL), ('text', TEXT)]
