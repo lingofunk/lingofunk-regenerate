@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import torch.autograd as autograd
 from tqdm import tqdm
 
 project_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
@@ -15,6 +14,20 @@ sys.path.insert(0, project_folder)
 from lingofunk_regenerate.datasets import YelpDataset as Dataset
 # from lingofunk_regenerate.datasets import HaikuDataset as Dataset
 from lingofunk_regenerate.model import RNN_VAE
+from lingofunk_regenerate.constants import H_DIM
+from lingofunk_regenerate.constants import Z_DIM
+from lingofunk_regenerate.constants import C_DIM
+from lingofunk_regenerate.constants import DROPOUT
+from lingofunk_regenerate.constants import MBSIZE
+from lingofunk_regenerate.constants import KL_WEIGHT_MAX
+from lingofunk_regenerate.constants import BETA
+from lingofunk_regenerate.constants import LAMBDA_C
+from lingofunk_regenerate.constants import LAMBDA_Z
+from lingofunk_regenerate.constants import LAMBDA_U
+from lingofunk_regenerate.constants import LR
+from lingofunk_regenerate.constants import NUM_ITERATIONS_TOTAL
+from lingofunk_regenerate.constants import NUM_ITERATIONS_LOG
+from lingofunk_regenerate.constants import NUM_ITERATIONS_LR_DECAY
 
 
 parser = argparse.ArgumentParser(
@@ -32,44 +45,30 @@ parser.add_argument('--save', default=False, action='store_true',
 
 args = parser.parse_args()
 
-
-# mb_size = 32
-z_dim = 20
-h_dim = 64
-
-lr = 1e-3  # 1e-3
-lr_decay_every = 10000 # 1000000
-n_iter = 20000 # 20000
-
-log_interval = 100 # 1000
-
-z_dim = h_dim
-c_dim = 2
-
-dropout = 0.1
-
-dataset = Dataset()
+dataset = Dataset(mbsize=MBSIZE)
 
 model = RNN_VAE(
-    dataset.n_vocab,
-    h_dim, z_dim, c_dim,
-    p_word_dropout=dropout,
+    dataset.n_vocab, H_DIM, Z_DIM, C_DIM,
+    p_word_dropout=DROPOUT,
     pretrained_embeddings=dataset.get_vocab_vectors(),
-    freeze_embeddings=False,
+    freeze_embeddings=True,
     gpu=args.gpu
 )
 
 
 def fit_vae():
+    # Load pretrained base VAE with c ~ p(c)
+    # model.load_state_dict(torch.load('models/vae.bin'))
+
     # Annealing for KL term
     kld_start_inc = 3000
     kld_weight = 0.01
     kld_max = 0.15
-    kld_inc = (kld_max - kld_weight) / (n_iter - kld_start_inc)
+    kld_inc = (kld_max - kld_weight) / (NUM_ITERATIONS_TOTAL - kld_start_inc)
 
-    trainer = optim.Adam(model.vae_params, lr=lr)
+    trainer = optim.Adam(model.vae_params, lr=LR)
 
-    for it in range(n_iter):
+    for it in range(NUM_ITERATIONS_TOTAL):
         inputs, labels = dataset.next_batch(args.gpu)
 
         recon_loss, kl_loss = model.forward(inputs)
@@ -84,7 +83,7 @@ def fit_vae():
         trainer.step()
         trainer.zero_grad()
 
-        if it % log_interval == 0:
+        if it % NUM_ITERATIONS_LOG == 0:
             z = model.sample_z_prior(1)
             c = model.sample_c_prior(1)
 
@@ -105,7 +104,7 @@ def fit_vae():
             # print()
 
         # Anneal learning rate
-        new_lr = lr * (0.5 ** (it // lr_decay_every))
+        new_lr = LR * (0.5 ** (it // NUM_ITERATIONS_LR_DECAY))
         for param_group in trainer.param_groups:
             param_group['lr'] = new_lr
 
@@ -115,27 +114,6 @@ def save_vae():
         os.makedirs('models/')
 
     torch.save(model.state_dict(), 'models/vae.bin')
-
-
-mbsize = 20
-kl_weight_max = 0.4
-
-# Specific hyperparams
-beta = 0.1
-lambda_c = 0.1
-lambda_z = 0.1
-lambda_u = 0.1
-
-dataset = Dataset(mbsize=mbsize)
-
-model = RNN_VAE(
-    dataset.n_vocab, h_dim, z_dim, c_dim, p_word_dropout=0.3,
-    pretrained_embeddings=dataset.get_vocab_vectors(), freeze_embeddings=True,
-    gpu=args.gpu
-)
-
-# Load pretrained base VAE with c ~ p(c)
-model.load_state_dict(torch.load('models/vae.bin'))
 
 
 def kl_weight(it):
@@ -155,11 +133,11 @@ def temp(it):
 
 
 def fit_discriminator():
-    trainer_D = optim.Adam(model.discriminator_params, lr=lr)
-    trainer_G = optim.Adam(model.decoder_params, lr=lr)
-    trainer_E = optim.Adam(model.encoder_params, lr=lr)
+    trainer_D = optim.Adam(model.discriminator_params, lr=LR)
+    trainer_G = optim.Adam(model.decoder_params, lr=LR)
+    trainer_E = optim.Adam(model.encoder_params, lr=LR)
 
-    for it in tqdm(range(n_iter)):
+    for it in tqdm(range(NUM_ITERATIONS_TOTAL)):
         inputs, labels = dataset.next_batch(args.gpu)
 
         """ Update discriminator, eq. 11 """
@@ -175,9 +153,9 @@ def fit_discriminator():
         entropy = -log_y_disc_fake.mean()
 
         loss_s = F.cross_entropy(y_disc_real, labels)
-        loss_u = F.cross_entropy(y_disc_fake, target_c) + beta*entropy
+        loss_u = F.cross_entropy(y_disc_fake, target_c) + BETA * entropy
 
-        loss_D = loss_s + lambda_u*loss_u
+        loss_D = loss_s + LAMBDA_U*loss_u
 
         loss_D.backward()
         grad_norm = torch.nn.utils.clip_grad_norm(model.discriminator_params, 5)
@@ -194,11 +172,11 @@ def fit_discriminator():
         y_z, _ = model.forward_encoder_embed(x_gen_attr.transpose(0, 1))
         y_c = model.forward_discriminator_embed(x_gen_attr)
 
-        loss_vae = recon_loss + kl_weight_max * kl_loss
+        loss_vae = recon_loss + KL_WEIGHT_MAX * kl_loss
         loss_attr_c = F.cross_entropy(y_c, target_c)
         loss_attr_z = F.mse_loss(y_z, target_z)
 
-        loss_G = loss_vae + lambda_c*loss_attr_c + lambda_z*loss_attr_z
+        loss_G = loss_vae + LAMBDA_C * loss_attr_c + LAMBDA_Z * loss_attr_z
 
         loss_G.backward()
         grad_norm = torch.nn.utils.clip_grad_norm(model.decoder_params, 5)
@@ -208,14 +186,14 @@ def fit_discriminator():
         """ Update encoder, eq. 4 """
         recon_loss, kl_loss = model.forward(inputs, use_c_prior=False)
 
-        loss_E = recon_loss + kl_weight_max * kl_loss
+        loss_E = recon_loss + KL_WEIGHT_MAX * kl_loss
 
         loss_E.backward()
         grad_norm = torch.nn.utils.clip_grad_norm(model.encoder_params, 5)
         trainer_E.step()
         trainer_E.zero_grad()
 
-        if it % log_interval == 0:
+        if it % NUM_ITERATIONS_LOG == 0:
             z = model.sample_z_prior(1)
             c = model.sample_c_prior(1)
 
