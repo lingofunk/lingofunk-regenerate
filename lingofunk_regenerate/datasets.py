@@ -199,90 +199,89 @@ class Dataset:
 
 ## Prepare
 
-# import csv
-#
-# from sklearn.model_selection import train_test_split
-#
-# data_folder = os.path.join('../../../data')
-# data_path = os.path.join(data_folder, 'reviews.csv')
-# data_path_txt = os.path.join(data_folder, 'reviews.txt')
-# cols = ['text', 'stars']
-# index_col = 0
-# nrows = 10000
-#
-# df = pd.read_csv(data_path, usecols=cols, sep=',', index_col=index_col, nrows=nrows)
-# df.reset_index(inplace=True)
-#
-# print(df.shape)
-#
-# df.rename(columns={'stars': 'label'}, inplace=True)
-# df.drop(index=df[df['label'] == 3.0].index, axis=0, inplace=True)
-#
-# print(df.shape)
-#
-# labels = df['label'].values
-# labels[labels == 2] = 0
-# labels[labels == 1] = 0
-# labels[labels == 5] = 1
-# labels[labels == 4] = 1
-#
-# df['label'] = labels
-#
-# texts = df['text'].values
-#
-# for i in range(len(texts)):
-#     texts[i] = ' '.join(texts[i].split('\n'))
-#
-# with open(data_path_txt, 'w') as f:
-#     f.write('\n'.join(texts))
-#
-# labels_expanded = []
-# texts_expanded = []
-#
-# for text, label in zip(texts, labels):
-#     text = ' '.join(text.split('\n'))
-#     words = text.split(' ')
-#     words_splitted = [words[i:i+15] for i in range(0, len(words) - 15, 15)]
-#     labels_splitted = len(words_splitted) * [label]
-#
-#     # print(words)
-#     # print(words_splitted)
-#     # print(labels_splitted)
-#     # print(len(words))
-#     # print(len(words_splitted))
-#     # print(len(labels_splitted))
-#
-#     labels_expanded += labels_splitted
-#     texts_expanded += [' '.join(ws) for ws in words_splitted]
-#
-# df_new = pd.DataFrame()
-# df_new['label'] = labels_expanded
-# df_new['text'] = texts_expanded
-#
-# df_train, df_test = train_test_split(df_new, test_size=0.2)
-# df_train, df_val = train_test_split(df_train, test_size=0.1)
-#
-# # df_train = df.sample(frac=0.8, random_state=200)
-# # df_test = df.drop(df_train.index)
-# #
-# # df_train = df_train.sample(frac=0.9, random_state=200)
-# # df_val = df_train.drop(df_train.index)
-#
-# print(df_train.head())
-#
-# df_train.reset_index(inplace=True, drop=True)
-# df_test.reset_index(inplace=True, drop=True)
-# df_val.reset_index(inplace=True, drop=True)
-#
-# print(df_train.shape)
-# print(df_test.shape)
-# print(df_val.shape)
-#
-# print(df_train.head())
-#
-# df_train.to_csv(os.path.join(data_folder, 'reviews_train.csv'), index=False, quoting=csv.QUOTE_NONNUMERIC)
-# df_test.to_csv(os.path.join(data_folder, 'reviews_test.csv'), index=False, quoting=csv.QUOTE_NONNUMERIC)
-# df_val.to_csv(os.path.join(data_folder, 'reviews_val.csv'), index=False, quoting=csv.QUOTE_NONNUMERIC)
+import csv
+from sklearn.model_selection import train_test_split
+
+def prepare_yelp_data():
+    data_path = os.path.join(data_folder, 'reviews.csv')
+    # data_path_txt = os.path.join(data_folder, 'reviews.txt')
+    cols = ['text', 'stars']
+    index_col = 0
+    nrows = 500000
+
+    df = pd.read_csv(data_path, usecols=cols, sep=',', index_col=index_col, nrows=nrows)
+    df.reset_index(inplace=True)
+
+    # print(df.shape)
+
+    df.rename(columns={'stars': 'label'}, inplace=True)
+    df.drop(index=df[df['label'] == 3.0].index, axis=0, inplace=True)
+
+    # print(df.shape)
+
+    labels = df['label'].values
+    labels[labels == 2] = 0
+    labels[labels == 1] = 0
+    labels[labels == 5] = 0
+    labels[labels == 4] = 0
+
+    df['label'] = labels
+
+    texts = df['text'].values
+
+    for i in range(len(texts)):
+        texts[i] = ' '.join(texts[i].split('\n'))
+
+    # with open(data_path_txt, 'w') as f:
+    #     f.write('\n'.join(texts))
+
+    labels_expanded = []
+    texts_expanded = []
+
+    for text, label in zip(texts, labels):
+        text = ' '.join(text.split('\n'))
+        words = text.split(' ')
+        words_splitted = [words[i:i+15] for i in range(0, len(words) - 15, 15)]
+        labels_splitted = len(words_splitted) * [label]
+
+        # print(words)
+        # print(words_splitted)
+        # print(labels_splitted)
+        # print(len(words))
+        # print(len(words_splitted))
+        # print(len(labels_splitted))
+
+        labels_expanded += labels_splitted
+        texts_expanded += [' '.join(ws) for ws in words_splitted]
+
+    df_new = pd.DataFrame()
+    df_new['label'] = labels_expanded
+    df_new['text'] = texts_expanded
+
+    df_train, df_test = train_test_split(df_new, test_size=0.2)
+    df_train, df_val = train_test_split(df_train, test_size=0.1)
+
+    # df_train = df.sample(frac=0.8, random_state=200)
+    # df_test = df.drop(df_train.index)
+    #
+    # df_train = df_train.sample(frac=0.9, random_state=200)
+    # df_val = df_train.drop(df_train.index)
+
+    print(df_train.head())
+
+    df_train.reset_index(inplace=True, drop=True)
+    df_test.reset_index(inplace=True, drop=True)
+    df_val.reset_index(inplace=True, drop=True)
+
+    print(df_train.shape)
+    print(df_test.shape)
+    print(df_val.shape)
+
+    print(df_train.head())
+
+    df_train.to_csv(os.path.join(data_folder, 'reviews_train.csv'), index=False, quoting=csv.QUOTE_NONNUMERIC)
+    df_test.to_csv(os.path.join(data_folder, 'reviews_test.csv'), index=False, quoting=csv.QUOTE_NONNUMERIC)
+    df_val.to_csv(os.path.join(data_folder, 'reviews_val.csv'), index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
 ## Dataset
@@ -319,6 +318,11 @@ def get_yelp_data(field_text, field_label):
 #     # if your csv header has a header, make sure to pass this to ensure it doesn't get proceesed as data!
 #     fields=tst_datafields)
 
+
 class YelpDataset(Dataset):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, get_data_cb=get_yelp_data)
+
+
+if __name__ == '__main__':
+    prepare_yelp_data()
