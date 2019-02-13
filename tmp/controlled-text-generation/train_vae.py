@@ -17,13 +17,15 @@ import argparse
 
 
 parser = argparse.ArgumentParser(
-    description='Conditional Text Generation: Train VAE as in Bowman, 2016, with c ~ p(c)'
+    description="Conditional Text Generation: Train VAE as in Bowman, 2016, with c ~ p(c)"
 )
 
-parser.add_argument('--gpu', default=False, action='store_true',
-                    help='whether to run in the GPU')
-parser.add_argument('--save', default=False, action='store_true',
-                    help='whether to save model or not')
+parser.add_argument(
+    "--gpu", default=False, action="store_true", help="whether to run in the GPU"
+)
+parser.add_argument(
+    "--save", default=False, action="store_true", help="whether to save model or not"
+)
 
 args = parser.parse_args()
 
@@ -33,8 +35,8 @@ z_dim = 20
 h_dim = 64
 lr = 5e-3  # 1e-3
 lr_decay_every = 1000000
-n_iter = 20000 # 20000
-log_interval = 100 # 1000
+n_iter = 20000  # 20000
+log_interval = 100  # 1000
 z_dim = h_dim
 c_dim = 2
 
@@ -43,9 +45,14 @@ dropout = 0.1
 dataset = Dataset()
 
 model = RNN_VAE(
-    dataset.n_vocab, h_dim, z_dim, c_dim, p_word_dropout=dropout,
-    pretrained_embeddings=dataset.get_vocab_vectors(), freeze_embeddings=False,
-    gpu=args.gpu
+    dataset.n_vocab,
+    h_dim,
+    z_dim,
+    c_dim,
+    p_word_dropout=dropout,
+    pretrained_embeddings=dataset.get_vocab_vectors(),
+    freeze_embeddings=False,
+    gpu=args.gpu,
 )
 
 
@@ -80,8 +87,11 @@ def main():
             sample_idxs = model.sample_sentence(z, c)
             sample_sent = dataset.idxs2sentence(sample_idxs)
 
-            print('Iter-{}; Loss: {:.4f}; Recon: {:.4f}; KL: {:.4f}; Grad_norm: {:.4f};'
-                  .format(it, loss.item(), recon_loss.item(), kl_loss.item(), grad_norm))
+            print(
+                "Iter-{}; Loss: {:.4f}; Recon: {:.4f}; KL: {:.4f}; Grad_norm: {:.4f};".format(
+                    it, loss.item(), recon_loss.item(), kl_loss.item(), grad_norm
+                )
+            )
 
             print('Sample: "{}"'.format(sample_sent))
             print()
@@ -89,17 +99,17 @@ def main():
         # Anneal learning rate
         new_lr = lr * (0.5 ** (it // lr_decay_every))
         for param_group in trainer.param_groups:
-            param_group['lr'] = new_lr
+            param_group["lr"] = new_lr
 
 
 def save_model():
-    if not os.path.exists('models/'):
-        os.makedirs('models/')
+    if not os.path.exists("models/"):
+        os.makedirs("models/")
 
-    torch.save(model.state_dict(), 'models/vae.bin')
+    torch.save(model.state_dict(), "models/vae.bin")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

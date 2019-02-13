@@ -16,11 +16,12 @@ import argparse
 
 
 parser = argparse.ArgumentParser(
-    description='Conditional Text Generation: Train Discriminator'
+    description="Conditional Text Generation: Train Discriminator"
 )
 
-parser.add_argument('--gpu', default=False, action='store_true',
-                    help='whether to run in the GPU')
+parser.add_argument(
+    "--gpu", default=False, action="store_true", help="whether to run in the GPU"
+)
 
 args = parser.parse_args()
 
@@ -40,7 +41,6 @@ dataset = SST_Dataset()
 
 
 class Clf(nn.Module):
-
     def __init__(self):
         super(Clf, self).__init__()
 
@@ -54,10 +54,7 @@ class Clf(nn.Module):
         self.conv4 = nn.Conv2d(1, 100, (4, emb_dim))
         self.conv5 = nn.Conv2d(1, 100, (5, emb_dim))
 
-        self.discriminator = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(300, 2)
-        )
+        self.discriminator = nn.Sequential(nn.Dropout(0.5), nn.Linear(300, 2))
 
     def trainable_parameters(self):
         return filter(lambda p: p.requires_grad, self.parameters())
@@ -114,4 +111,8 @@ for it in range(n_iter):
             acc = float((y == labels).sum()) / y.size(0)
             accs.append(acc)
 
-        print('Iter-{}; loss: {:.4f}; val_acc: {:.4f}'.format(it, float(loss), np.mean(accs)))
+        print(
+            "Iter-{}; loss: {:.4f}; val_acc: {:.4f}".format(
+                it, float(loss), np.mean(accs)
+            )
+        )

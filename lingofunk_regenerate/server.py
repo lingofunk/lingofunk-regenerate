@@ -1,29 +1,29 @@
-import sys
-import os
 import argparse
 import logging
-import time
-from flask import Flask, request, jsonify
-import tensorflow as tf
-import numpy as np
-import torch
+import os
 import re
+import sys
+import time
 
-project_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, project_folder)
+import numpy as np
+import tensorflow as tf
+from flask import Flask, jsonify, request
 
+import torch
+from lingofunk_regenerate import tests as tests
+from lingofunk_regenerate.constants import (
+    C_DIM,
+    DROPOUT,
+    H_DIM,
+    MODELS_FOLDER_PATH,
+    PORT_DEFAULT,
+    Z_DIM,
+)
 from lingofunk_regenerate.datasets import YelpDataset as Dataset
+
 # from lingofunk_regenerate.datasets import HaikuDataset as Dataset
 from lingofunk_regenerate.model import RNN_VAE
-from lingofunk_regenerate.constants import H_DIM
-from lingofunk_regenerate.constants import Z_DIM
-from lingofunk_regenerate.constants import C_DIM
-from lingofunk_regenerate.constants import DROPOUT
-from lingofunk_regenerate.constants import MODELS_FOLDER_PATH
-from lingofunk_regenerate.constants import PORT_DEFAULT
 from lingofunk_regenerate.utils import log as _log
-from lingofunk_regenerate import tests as tests
-
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -37,30 +37,30 @@ dataset = None
 
 
 def log(text):
-    _log(text, prefix='Server: ')
+    _log(text, prefix="Server: ")
 
 
-@app.route('/hello', methods=['GET'])
+@app.route("/hello", methods=["GET"])
 def hello_world():
-    return 'Hello World!'
+    return "Hello World!"
 
 
-@app.route('/regenerate', methods=['POST'])
+@app.route("/regenerate", methods=["POST"])
 def regenerate():
-    logger.debug('request: {}'.format(request.get_json()))
+    logger.debug("request: {}".format(request.get_json()))
 
     global model
     global dataset
 
     data = request.get_json()
 
-    sentence = data['text']
-    sentence = re.sub('\W', ' ', sentence)
+    sentence = data["text"]
+    sentence = re.sub("\W", " ", sentence)
 
-    logger.debug('Sentence: {}'.format(sentence))
+    logger.debug("Sentence: {}".format(sentence))
 
-    angle = float(data['angle'])
-    radius = float(data['radius'])
+    angle = float(data["angle"])
+    radius = float(data["radius"])
     disturbance_fraction = radius / 100
 
     if angle > 180:
@@ -70,13 +70,11 @@ def regenerate():
         angle = angle
         sign = +1
 
-    index = int(np.round(
-        angle / 180 * (model.z_dim - 1)
-    ))
+    index = int(np.round(angle / 180 * (model.z_dim - 1)))
     disturbance_fraction_signed = sign * disturbance_fraction
 
-    logger.debug('index to disturb: {}'.format(index))
-    logger.debug('disturbance fraction: {}'.format(disturbance_fraction_signed))
+    logger.debug("index to disturb: {}".format(index))
+    logger.debug("disturbance fraction: {}".format(disturbance_fraction_signed))
 
     mbsize = 1
 
@@ -98,7 +96,7 @@ def regenerate():
     num_hits_best = None
 
     for i in range(20):
-        logger.debug('iter {}:'.format(i))
+        logger.debug("iter {}:".format(i))
 
         z = model.sample_z(mu, logvar)
         disturbance = disturbance_fraction_signed * abs(z[0, index])
@@ -107,50 +105,61 @@ def regenerate():
         sampled_idxs = model.sample_sentence(z, c, temp=temp)
         sampled_sentence = dataset.idxs2sentence(sampled_idxs)
 
-        sampled_idxs = torch.from_numpy(
-            np.array(sampled_idxs).reshape(-1, mbsize)
-        )
+        sampled_idxs = torch.from_numpy(np.array(sampled_idxs).reshape(-1, mbsize))
 
         num_hits = len(
-           set(sentence.numpy().flatten()).intersection(
-               set(sampled_idxs.numpy().flatten()))
+            set(sentence.numpy().flatten()).intersection(
+                set(sampled_idxs.numpy().flatten())
+            )
         )
 
-        logger.debug('sampled sentence: {}'.format(sampled_sentence))
-        logger.debug('num hits: {}'.format(num_hits))
+        logger.debug("sampled sentence: {}".format(sampled_sentence))
+        logger.debug("num hits: {}".format(num_hits))
 
         if num_hits_best is None or num_hits > num_hits_best:
             num_hits_best = num_hits
             regenerated_sentence = sampled_sentence
 
-    log('Regenerated sentence: ' + regenerated_sentence + '\n')
+    log("Regenerated sentence: " + regenerated_sentence + "\n")
 
-    return jsonify({'new-text': regenerated_sentence})
+    return jsonify({"new-text": regenerated_sentence})
 
 
 def _parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        '--port', type=int, required=False, default=PORT_DEFAULT,
-        help='The port to listen on')
+        "--port",
+        type=int,
+        required=False,
+        default=PORT_DEFAULT,
+        help="The port to listen on",
+    )
 
     parser.add_argument(
-        '--seed', type=int, required=False, default=int(time.time()),
-        help='Random seed')
+        "--seed", type=int, required=False, default=int(time.time()), help="Random seed"
+    )
 
     parser.add_argument(
-        '--model', type=str, required=False, default='vae',
-        choices=['vae', 'ctextgen'],
-        help='Which model to use')
+        "--model",
+        type=str,
+        required=False,
+        default="vae",
+        choices=["vae", "ctextgen"],
+        help="Which model to use",
+    )
 
     parser.add_argument(
-        '--models-folder', type=str, required=False, default=MODELS_FOLDER_PATH,
-        help='Folder to load models (weights, vocabs, configs) from')
+        "--models-folder",
+        type=str,
+        required=False,
+        default=MODELS_FOLDER_PATH,
+        help="Folder to load models (weights, vocabs, configs) from",
+    )
 
     parser.add_argument(
-        '--gpu', required=False, action='store_true',
-        help='whether to run in the GPU')
+        "--gpu", required=False, action="store_true", help="whether to run in the GPU"
+    )
 
     return parser.parse_args()
 
@@ -174,21 +183,29 @@ def _load_model(model_name, models_folder, gpu=False):
     p_word_dropout = DROPOUT
 
     model = RNN_VAE(
-        dataset.n_vocab, h_dim, z_dim, c_dim, p_word_dropout=p_word_dropout,
+        dataset.n_vocab,
+        h_dim,
+        z_dim,
+        c_dim,
+        p_word_dropout=p_word_dropout,
         pretrained_embeddings=dataset.get_vocab_vectors(),
         freeze_embeddings=True,
-        gpu=gpu)
+        gpu=gpu,
+    )
 
     if gpu:
-        model.load_state_dict(
-            torch.load('{}/{}.bin'.format(models_folder, model_name)))
+        model.load_state_dict(torch.load("{}/{}.bin".format(models_folder, model_name)))
     else:  # TODO: DRY
         model.load_state_dict(
-            torch.load('{}/{}.bin'.format(models_folder, model_name), map_location=lambda storage, loc: storage))
+            torch.load(
+                "{}/{}.bin".format(models_folder, model_name),
+                map_location=lambda storage, loc: storage,
+            )
+        )
 
 
 def _test_model(gpu=False):
-    log('test model')
+    log("test model")
 
     global model
     global dataset
@@ -205,8 +222,8 @@ def _main():
     _load_model(args.model, args.models_folder, args.gpu)
     # _test_model(args.gpu)
 
-    app.run(host='0.0.0.0', port=args.port, debug=True, threaded=True)
+    app.run(host="0.0.0.0", port=args.port, debug=True, threaded=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     _main()
