@@ -47,7 +47,7 @@ parser.add_argument(
     + "or discriminator - using Kim, 2014 architecture and training procedure is as in Hu, 2017)",
 )
 parser.add_argument(
-    "--save", default=False, action="store_true", help="whether to save model or not"
+    "--not-save", action="store_false", help="whether to not save model or not"
 )
 
 args = parser.parse_args()
@@ -146,6 +146,9 @@ def temp(it):
 
 
 def fit_discriminator():
+    # Load pretrained base VAE with c ~ p(c)
+    model.load_state_dict(torch.load('models/vae.bin'))
+
     trainer_D = optim.Adam(model.discriminator_params, lr=LR)
     trainer_G = optim.Adam(model.decoder_params, lr=LR)
     trainer_E = optim.Adam(model.encoder_params, lr=LR)
