@@ -2,7 +2,7 @@ import csv
 import os
 
 import pandas as pd
-from lingofunk_regenerate.constants import DATA_FOLDER_PATH_PATH
+from lingofunk_regenerate.constants import DATA_FOLDER_PATH
 from sklearn.model_selection import train_test_split
 from torchtext import data, datasets
 from torchtext.data import Field, TabularDataset
