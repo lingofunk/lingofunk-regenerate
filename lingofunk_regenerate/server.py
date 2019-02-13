@@ -145,8 +145,7 @@ def _parse_args():
         type=str,
         required=False,
         default="vae",
-        choices=["vae", "ctextgen"],
-        help="Which model to use",
+        help="Which model to use (vae, ctextgen or other *.bin file in models folder)",
     )
 
     parser.add_argument(
