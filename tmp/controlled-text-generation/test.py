@@ -16,14 +16,17 @@ import random
 import time
 
 
-parser = argparse.ArgumentParser(
-    description='Conditional Text Generation'
-)
+parser = argparse.ArgumentParser(description="Conditional Text Generation")
 
-parser.add_argument('--gpu', default=False, action='store_true',
-                    help='whether to run in the GPU')
-parser.add_argument('--model', default='ctextgen', metavar='',
-                    help='choose the model: {`vae`, `ctextgen`}, (default: `ctextgen`)')
+parser.add_argument(
+    "--gpu", default=False, action="store_true", help="whether to run in the GPU"
+)
+parser.add_argument(
+    "--model",
+    default="ctextgen",
+    metavar="",
+    help="choose the model: {`vae`, `ctextgen`}, (default: `ctextgen`)",
+)
 
 args = parser.parse_args()
 
@@ -43,15 +46,25 @@ dataset = Dataset()
 torch.manual_seed(int(time.time()))
 
 model = RNN_VAE(
-    dataset.n_vocab, h_dim, z_dim, c_dim, p_word_dropout=0.3,
-    pretrained_embeddings=dataset.get_vocab_vectors(), freeze_embeddings=True,
-    gpu=args.gpu
+    dataset.n_vocab,
+    h_dim,
+    z_dim,
+    c_dim,
+    p_word_dropout=0.3,
+    pretrained_embeddings=dataset.get_vocab_vectors(),
+    freeze_embeddings=True,
+    gpu=args.gpu,
 )
 
 if args.gpu:
-    model.load_state_dict(torch.load('models/{}.bin'.format(args.model)))
+    model.load_state_dict(torch.load("models/{}.bin".format(args.model)))
 else:
-    model.load_state_dict(torch.load('models/{}.bin'.format(args.model), map_location=lambda storage, loc: storage))
+    model.load_state_dict(
+        torch.load(
+            "models/{}.bin".format(args.model),
+            map_location=lambda storage, loc: storage,
+        )
+    )
 
 # Samples latent and conditional codes randomly from prior
 z = model.sample_z_prior(1)
@@ -63,8 +76,8 @@ c[0, 0], c[0, 1] = 1, 0
 _, c_idx = torch.max(c, dim=1)
 sample_idxs = model.sample_sentence(z, c, temp=0.1)
 
-print('\nSentiment: {}'.format(dataset.idx2label(int(c_idx))))
-print('Generated: {}'.format(dataset.idxs2sentence(sample_idxs)))
+print("\nSentiment: {}".format(dataset.idx2label(int(c_idx))))
+print("Generated: {}".format(dataset.idxs2sentence(sample_idxs)))
 
 # Generate negative sample from the same z
 c[0, 0], c[0, 1] = 0, 1
@@ -72,8 +85,8 @@ c[0, 0], c[0, 1] = 0, 1
 _, c_idx = torch.max(c, dim=1)
 sample_idxs = model.sample_sentence(z, c, temp=0.8)
 
-print('\nSentiment: {}'.format(dataset.idx2label(int(c_idx))))
-print('Generated: {}'.format(dataset.idxs2sentence(sample_idxs)))
+print("\nSentiment: {}".format(dataset.idx2label(int(c_idx))))
+print("Generated: {}".format(dataset.idxs2sentence(sample_idxs)))
 
 print()
 
@@ -89,11 +102,11 @@ z2 = z2.cuda() if args.gpu else z2
 # Interpolation coefficients
 alphas = np.linspace(0, 1, 5)
 
-print('Interpolation of z:')
-print('-------------------')
+print("Interpolation of z:")
+print("-------------------")
 
 for alpha in alphas:
-    z = float(1-alpha)*z1 + float(alpha)*z2
+    z = float(1 - alpha) * z1 + float(alpha) * z2
 
     sample_idxs = model.sample_sentence(z, c, temp=0.1)
     sample_sent = dataset.idxs2sentence(sample_idxs)

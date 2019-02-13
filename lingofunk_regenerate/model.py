@@ -1,9 +1,11 @@
+from itertools import chain
+
 import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from itertools import chain
 
 
 class RNN_VAE(nn.Module):
@@ -13,8 +15,22 @@ class RNN_VAE(nn.Module):
     3. Kim, Yoon. "Convolutional neural networks for sentence classification." arXiv preprint arXiv:1408.5882 (2014).
     """
 
-    def __init__(self, n_vocab, h_dim, z_dim, c_dim, p_word_dropout=0.1, unk_idx=0, pad_idx=1, start_idx=2, eos_idx=3,
-                 max_sent_len=15, pretrained_embeddings=None, freeze_embeddings=False, gpu=False):
+    def __init__(
+        self,
+        n_vocab,
+        h_dim,
+        z_dim,
+        c_dim,
+        p_word_dropout=0.1,
+        unk_idx=0,
+        pad_idx=1,
+        start_idx=2,
+        eos_idx=3,
+        max_sent_len=15,
+        pretrained_embeddings=None,
+        freeze_embeddings=False,
+        gpu=False,
+    ):
         super(RNN_VAE, self).__init__()
 
         self.UNK_IDX = unk_idx
@@ -57,8 +73,10 @@ class RNN_VAE(nn.Module):
         """
         Decoder is GRU with `z` and `c` appended at its inputs
         """
-        self.decoder = nn.GRU(self.emb_dim+z_dim+c_dim, z_dim+c_dim)  #, dropout=p_word_dropout)
-        self.decoder_fc = nn.Linear(z_dim+c_dim, n_vocab)
+        self.decoder = nn.GRU(
+            self.emb_dim + z_dim + c_dim, z_dim + c_dim
+        )  # , dropout=p_word_dropout)
+        self.decoder_fc = nn.Linear(z_dim + c_dim, n_vocab)
 
         """
         Discriminator is CNN as in Kim, 2014
@@ -67,21 +85,19 @@ class RNN_VAE(nn.Module):
         self.conv4 = nn.Conv2d(1, 100, (4, self.emb_dim))
         self.conv5 = nn.Conv2d(1, 100, (5, self.emb_dim))
 
-        self.disc_fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(300, 2)
-        )
+        self.disc_fc = nn.Sequential(nn.Dropout(0.5), nn.Linear(300, 2))
 
-        self.discriminator = nn.ModuleList([
-            self.conv3, self.conv4, self.conv5, self.disc_fc
-        ])
+        self.discriminator = nn.ModuleList(
+            [self.conv3, self.conv4, self.conv5, self.disc_fc]
+        )
 
         """
         Grouping the model's parameters: separating encoder, decoder, and discriminator
         """
         self.encoder_params = chain(
-            self.encoder.parameters(), self.q_mu.parameters(),
-            self.q_logvar.parameters()
+            self.encoder.parameters(),
+            self.q_mu.parameters(),
+            self.q_logvar.parameters(),
         )
 
         self.decoder_params = chain(
@@ -93,7 +109,9 @@ class RNN_VAE(nn.Module):
         )
         self.vae_params = filter(lambda p: p.requires_grad, self.vae_params)
 
-        self.discriminator_params = filter(lambda p: p.requires_grad, self.discriminator.parameters())
+        self.discriminator_params = filter(
+            lambda p: p.requires_grad, self.discriminator.parameters()
+        )
 
         """
         Use GPU if set
@@ -127,7 +145,7 @@ class RNN_VAE(nn.Module):
         """
         eps = Variable(torch.randn(self.z_dim))
         eps = eps.cuda() if self.gpu else eps
-        return mu + torch.exp(logvar/2) * eps
+        return mu + torch.exp(logvar / 2) * eps
 
     def sample_z_prior(self, mbsize):
         """
@@ -142,7 +160,9 @@ class RNN_VAE(nn.Module):
         Sample c ~ p(c) = Cat([0.5, 0.5])
         """
         c = Variable(
-            torch.from_numpy(np.random.multinomial(1, [0.5, 0.5], mbsize).astype('float32'))
+            torch.from_numpy(
+                np.random.multinomial(1, [0.5, 0.5], mbsize).astype("float32")
+            )
         )
         c = c.cuda() if self.gpu else c
         return c
@@ -164,7 +184,7 @@ class RNN_VAE(nn.Module):
         outputs, _ = self.decoder(inputs_emb, init_h)
         seq_len, mbsize, _ = outputs.size()
 
-        outputs = outputs.view(seq_len*mbsize, -1)
+        outputs = outputs.view(seq_len * mbsize, -1)
         y = self.decoder_fc(outputs)
         y = y.view(seq_len, mbsize, self.n_vocab)
 
@@ -249,7 +269,9 @@ class RNN_VAE(nn.Module):
         recon_loss = F.cross_entropy(
             y.view(-1, self.n_vocab), dec_targets.view(-1), size_average=True
         )
-        kl_loss = torch.mean(0.5 * torch.sum(torch.exp(logvar) + mu**2 - 1 - logvar, 1))
+        kl_loss = torch.mean(
+            0.5 * torch.sum(torch.exp(logvar) + mu ** 2 - 1 - logvar, 1)
+        )
 
         if return_decoded:
             return recon_loss, kl_loss, y.view(-1, self.n_vocab)
@@ -305,7 +327,7 @@ class RNN_VAE(nn.Module):
 
             output, h = self.decoder(emb, h)
             y = self.decoder_fc(output).view(-1)
-            y = F.softmax(y/temp, dim=0)
+            y = F.softmax(y / temp, dim=0)
 
             idx = torch.multinomial(y, 1)
 
@@ -411,8 +433,9 @@ class RNN_VAE(nn.Module):
 
         # Sample masks: elems with val 1 will be set to <unk>
         mask = torch.from_numpy(
-            np.random.binomial(1, p=self.p_word_dropout, size=tuple(data.size()))
-                     .astype('uint8')
+            np.random.binomial(
+                1, p=self.p_word_dropout, size=tuple(data.size())
+            ).astype("uint8")
         )
 
         if self.gpu:

@@ -17,13 +17,15 @@ from tqdm import tqdm
 
 
 parser = argparse.ArgumentParser(
-    description='Conditional Text Generation: Train Discriminator'
+    description="Conditional Text Generation: Train Discriminator"
 )
 
-parser.add_argument('--gpu', default=False, action='store_true',
-                    help='whether to run in the GPU')
-parser.add_argument('--save', default=False, action='store_true',
-                    help='whether to save model or not')
+parser.add_argument(
+    "--gpu", default=False, action="store_true", help="whether to run in the GPU"
+)
+parser.add_argument(
+    "--save", default=False, action="store_true", help="whether to save model or not"
+)
 
 args = parser.parse_args()
 
@@ -33,7 +35,7 @@ z_dim = 20
 h_dim = 64
 lr = 1e-3
 lr_decay_every = 1000000
-n_iter = 2 # 5000
+n_iter = 2  # 5000
 log_interval = 100
 z_dim = h_dim
 c_dim = 2
@@ -48,13 +50,18 @@ lambda_u = 0.1
 dataset = Dataset(mbsize=mbsize)
 
 model = RNN_VAE(
-    dataset.n_vocab, h_dim, z_dim, c_dim, p_word_dropout=0.3,
-    pretrained_embeddings=dataset.get_vocab_vectors(), freeze_embeddings=True,
-    gpu=args.gpu
+    dataset.n_vocab,
+    h_dim,
+    z_dim,
+    c_dim,
+    p_word_dropout=0.3,
+    pretrained_embeddings=dataset.get_vocab_vectors(),
+    freeze_embeddings=True,
+    gpu=args.gpu,
 )
 
 # Load pretrained base VAE with c ~ p(c)
-model.load_state_dict(torch.load('models/vae.bin'))
+model.load_state_dict(torch.load("models/vae.bin"))
 
 
 def kl_weight(it):
@@ -62,7 +69,7 @@ def kl_weight(it):
     Credit to: https://github.com/kefirski/pytorch_RVAE/
     0 -> 1
     """
-    return (math.tanh((it - 3500)/1000) + 1)/2
+    return (math.tanh((it - 3500) / 1000) + 1) / 2
 
 
 def temp(it):
@@ -70,7 +77,7 @@ def temp(it):
     Softmax temperature annealing
     1 -> 0
     """
-    return 1-kl_weight(it) + 1e-5  # To avoid overflow
+    return 1 - kl_weight(it) + 1e-5  # To avoid overflow
 
 
 def main():
@@ -84,7 +91,7 @@ def main():
         """ Update discriminator, eq. 11 """
         batch_size = inputs.size(1)
         # get sentences and corresponding z
-        x_gen, c_gen  = model.generate_sentences(batch_size)
+        x_gen, c_gen = model.generate_sentences(batch_size)
         _, target_c = torch.max(c_gen, dim=1)
 
         y_disc_real = model.forward_discriminator(inputs.transpose(0, 1))
@@ -94,9 +101,9 @@ def main():
         entropy = -log_y_disc_fake.mean()
 
         loss_s = F.cross_entropy(y_disc_real, labels)
-        loss_u = F.cross_entropy(y_disc_fake, target_c) + beta*entropy
+        loss_u = F.cross_entropy(y_disc_fake, target_c) + beta * entropy
 
-        loss_D = loss_s + lambda_u*loss_u
+        loss_D = loss_s + lambda_u * loss_u
 
         loss_D.backward()
         grad_norm = torch.nn.utils.clip_grad_norm(model.discriminator_params, 5)
@@ -107,7 +114,9 @@ def main():
         # Forward VAE with c ~ q(c|x) instead of from prior
         recon_loss, kl_loss = model.forward(inputs, use_c_prior=False)
         # x_gen: mbsize x seq_len x emb_dim
-        x_gen_attr, target_z, target_c = model.generate_soft_embed(batch_size, temp=temp(it))
+        x_gen_attr, target_z, target_c = model.generate_soft_embed(
+            batch_size, temp=temp(it)
+        )
 
         # y_z: mbsize x z_dim
         y_z, _ = model.forward_encoder_embed(x_gen_attr.transpose(0, 1))
@@ -117,7 +126,7 @@ def main():
         loss_attr_c = F.cross_entropy(y_c, target_c)
         loss_attr_z = F.mse_loss(y_z, target_z)
 
-        loss_G = loss_vae + lambda_c*loss_attr_c + lambda_z*loss_attr_z
+        loss_G = loss_vae + lambda_c * loss_attr_c + lambda_z * loss_attr_z
 
         loss_G.backward()
         grad_norm = torch.nn.utils.clip_grad_norm(model.decoder_params, 5)
@@ -141,24 +150,27 @@ def main():
             sample_idxs = model.sample_sentence(z, c)
             sample_sent = dataset.idxs2sentence(sample_idxs)
 
-            print('Iter-{}; loss_D: {:.4f}; loss_G: {:.4f}'
-                  .format(it, float(loss_D), float(loss_G)))
+            print(
+                "Iter-{}; loss_D: {:.4f}; loss_G: {:.4f}".format(
+                    it, float(loss_D), float(loss_G)
+                )
+            )
 
             _, c_idx = torch.max(c, dim=1)
 
-            print('c = {}'.format(dataset.idx2label(int(c_idx))))
+            print("c = {}".format(dataset.idx2label(int(c_idx))))
             print('Sample: "{}"'.format(sample_sent))
             print()
 
 
 def save_model():
-    if not os.path.exists('models/'):
-        os.makedirs('models/')
+    if not os.path.exists("models/"):
+        os.makedirs("models/")
 
-    torch.save(model.state_dict(), 'models/ctextgen.bin')
+    torch.save(model.state_dict(), "models/ctextgen.bin")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:

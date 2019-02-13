@@ -1,13 +1,13 @@
 import sys
 import os
+from pathlib import Path
 
-project_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, project_folder)
+PROJECT_FOLDER_PATH = Path(__file__).parent.parent
 
-MODELS_FOLDER_PATH = os.path.join(project_folder, 'models')
-DATA_FOLDER_PATH = os.path.join(project_folder, 'data')
+MODELS_FOLDER_PATH = os.path.join(PROJECT_FOLDER_PATH, "models")
+DATA_FOLDER_PATH = os.path.join(PROJECT_FOLDER_PATH, "data")
 
-DATA_FILE_NAME_DEFAULT = 'review.csv'
+DATA_FILE_NAME_DEFAULT = "review.csv"
 DATA_FILE_PATH_DEFAULT = os.path.join(DATA_FOLDER_PATH, DATA_FILE_NAME_DEFAULT)
 
 PORT_DEFAULT = 8000
