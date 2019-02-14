@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.join(
 from lingofunk_regenerate.constants import (
     DATA_FOLDER_PATH,
     NROWS_TO_READ_FROM_CSV,
-    MAX_NUM_WORDS_TO_FILTER
+    MAX_NUM_WORDS_TO_FILTER,
+    EMB_DIM
 )
 
 from lingofunk_regenerate.datasets import YelpDataset as Dataset
@@ -161,6 +162,14 @@ def _parse_args():
         help="Whether to save torchtext fields or not",
     )
 
+    parser.add_argument(
+        "--emb-dim",
+        type=int,
+        required=False,
+        default=EMB_DIM,
+        help="Embedding dim",
+    )
+
     return parser.parse_args()
 
 
@@ -177,6 +186,7 @@ if __name__ == "__main__":
     if args.save_fields:
         log('initialize dataset')
         dataset = Dataset(
+            emb_dim=args.emb_dim,
             data_folder=args.data_folder,
             train=args.train,
             test=args.test,
