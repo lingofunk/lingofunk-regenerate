@@ -66,9 +66,9 @@ class RNN_VAE(nn.Module):
         else:
             self.emb_dim = pretrained_embeddings.size(1)
 
-            print(n_vocab)
-            print(self.emb_dim)
-            print(self.PAD_IDX)
+            # print(n_vocab)
+            # print(self.emb_dim)
+            # print(self.PAD_IDX)
 
             self.word_emb = nn.Embedding(n_vocab, self.emb_dim, self.PAD_IDX)
 

@@ -18,10 +18,12 @@ from lingofunk_regenerate.constants import (
     C_DIM,
     DROPOUT,
     H_DIM,
+    Z_DIM,
     MODELS_FOLDER_PATH,
     DATA_FOLDER_PATH,
     PORT_DEFAULT,
-    Z_DIM,
+    BATCH_SIZE,
+    EMB_DIM
 )
 from lingofunk_regenerate.datasets import YelpDataset as Dataset
 from lingofunk_regenerate.model import RNN_VAE
@@ -175,7 +177,42 @@ def _parse_args():
     )
 
     parser.add_argument(
-        "--gpu", required=False, action="store_true", help="whether to run in the GPU"
+        "--gpu",
+        required=False,
+        action="store_true",
+        help="Whether to run in the GPU"
+    )
+
+    parser.add_argument(
+        "--emb-dim",
+        type=int,
+        required=False,
+        default=EMB_DIM,
+        help="Embedding dim",
+    )
+
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        required=False,
+        default=BATCH_SIZE,
+        help="Batch size",
+    )
+
+    parser.add_argument(
+        "--h-dim",
+        type=int,
+        required=False,
+        default=H_DIM,
+        help="Hidden dim",
+    )
+
+    parser.add_argument(
+        "--z-dim",
+        type=int,
+        required=False,
+        default=None,
+        help="Z dim",
     )
 
     return parser.parse_args()
@@ -186,20 +223,28 @@ def _set_seed(seed):
     torch.manual_seed(seed)
 
 
-def _load_model(model_name, models_folder, data_folder, load_fields=True, gpu=False):
+def _load_model(model_name,
+                models_folder,
+                data_folder,
+                emb_dim=EMB_DIM,
+                batch_size=BATCH_SIZE,
+                h_dim=H_DIM,
+                z_dim=None,
+                load_fields=True, gpu=False):
     # TODO: pass to config
 
     global model
     global dataset
 
     if load_fields:
-        dataset = Dataset(data_folder=data_folder)
+        dataset = Dataset(emb_dim=emb_dim, mbsize=batch_size, data_folder=data_folder)
         dataset.load_fields()
     else:
-        dataset = Dataset(data_folder=data_folder, init_from_data=True)
+        dataset = Dataset(emb_dim=emb_dim, mbsize=batch_size, data_folder=data_folder, init_from_data=True)
 
-    h_dim = H_DIM
-    z_dim = Z_DIM
+    h_dim = h_dim
+    z_dim = h_dim if z_dim is None else z_dim
+
     c_dim = C_DIM
     p_word_dropout = DROPOUT
 
@@ -241,6 +286,7 @@ def _main():
 
     _set_seed(args.seed)
     _load_model(args.model, args.models_folder, args.data_folder,
+                args.emb_dim, args.batch_size, args.h_dim, args.z_dim,
                 args.load_fields, args.gpu)
     # _test_model(args.gpu)
 
