@@ -17,7 +17,7 @@ GLOVE = '6B'
 
 NROWS_TO_READ_FROM_CSV = 500000
 
-H_DIM = 64  # 64
+H_DIM = 64
 Z_DIM = H_DIM  # 20
 C_DIM = 2
 
