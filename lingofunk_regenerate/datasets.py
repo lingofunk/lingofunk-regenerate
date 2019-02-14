@@ -25,7 +25,7 @@ def get_sst_data(field_text, field_label):
 
 
 class Dataset:
-    def __init__(self, emb_dim=100, mbsize=32, get_data_cb=get_sst_data):
+    def __init__(self, emb_dim=50, mbsize=32, get_data_cb=get_sst_data):
         self.TEXT = data.Field(
             init_token="<start>",
             eos_token="<eos>",
