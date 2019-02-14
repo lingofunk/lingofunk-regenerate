@@ -1,0 +1,2 @@
+python lingofunk_regenerate/datasets_prepare.py --data-folder ./data --save-fields --train reviews_train.csv --test reviews_test.csv --val reviews_val.csv
+python lingofunk_regenerate/server.py --models-folder ./models --data-folder ./data --load-fields
