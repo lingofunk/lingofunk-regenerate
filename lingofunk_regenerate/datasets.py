@@ -1,18 +1,30 @@
-import csv
 import os
-
-import pandas as pd
-from lingofunk_regenerate.constants import DATA_FOLDER_PATH
-from sklearn.model_selection import train_test_split
+import sys
+import torch
+import dill
 from torchtext import data, datasets
-from torchtext.data import Field, TabularDataset
+from torchtext.data import TabularDataset
 from torchtext.vocab import GloVe
 
-# 15
-filter_func = lambda ex: len(ex.text) <= 30 and ex.label != "neutral"
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..'))
+
+from lingofunk_regenerate.constants import (
+    DATA_FOLDER_PATH,
+    MAX_NUM_WORDS_TO_FILTER,
+    EMB_DIM,
+    BATCH_SIZE,
+    GLOVE
+)
+
+# Saving/loading torch fields
+# https://github.com/pytorch/text/pull/453/commits/064a204b1f715cca5e19af435a8f5519ee427aef
 
 
-def get_sst_data(field_text, field_label):
+filter_func = lambda ex: len(ex.text) <= MAX_NUM_WORDS_TO_FILTER
+
+
+def get_data_cb_sample(field_text, field_label):
     train, val, test = datasets.SST.splits(
         field_text,
         field_label,
@@ -25,20 +37,46 @@ def get_sst_data(field_text, field_label):
 
 
 class Dataset:
-    def __init__(self, emb_dim=100, mbsize=32, get_data_cb=get_sst_data):
+    def __init__(self,
+                 emb_dim=EMB_DIM,
+                 mbsize=BATCH_SIZE,
+                 get_data_cb=get_data_cb_sample,
+                 init_from_data=False):
+
+        self.TEXT = None
+        self.LABEL = None
+        self.n_vocab = None
+
+        self.emb_dim = emb_dim
+        self.mbsize = mbsize
+        self.get_data_cb = get_data_cb
+
+        self.train_iter, self.val_iter = None, None
+
+        if init_from_data:
+            self.initialize_from_data()
+
+    def initialize_from_data(self):
         self.TEXT = data.Field(
             init_token="<start>",
             eos_token="<eos>",
             lower=True,
             tokenize="spacy",
-            fix_length=16,
+            fix_length=MAX_NUM_WORDS_TO_FILTER + 1,
         )
-        self.LABEL = data.Field(sequential=False, unk_token=None)
+        self.LABEL = data.Field(
+            sequential=False,
+            unk_token=None
+        )
 
-        train, val, test = get_data_cb(self.TEXT, self.LABEL)
+        train, val, test = self.get_data_cb(self.TEXT, self.LABEL)
 
         self.TEXT.build_vocab(
-            train, vectors=GloVe("6B", dim=emb_dim, cache=DATA_FOLDER_PATH)
+            train,
+            vectors=GloVe(
+                GLOVE,
+                dim=self.emb_dim,
+                cache=DATA_FOLDER_PATH)
         )
         self.LABEL.build_vocab(train)
 
@@ -46,13 +84,46 @@ class Dataset:
         # print(self.LABEL.vocab)
 
         self.n_vocab = len(self.TEXT.vocab.itos)
-        self.emb_dim = emb_dim
 
         self.train_iter, self.val_iter, _ = data.BucketIterator.splits(
-            (train, val, test), batch_size=mbsize, shuffle=True, repeat=True
+            (train, val, test), batch_size=self.mbsize, shuffle=True, repeat=True
         )
         self.train_iter = iter(self.train_iter)
         self.val_iter = iter(self.val_iter)
+
+    def load_fields(self, folder_path=None):
+        if folder_path is None:
+            folder_path = self.data_folder
+
+        text_pickle_path = os.path.join(folder_path, 'text.pl')
+        label_pickle_path = os.path.join(folder_path, 'label.pl')
+
+        # self.TEXT = torch.load(text_pickle_path)
+        # self.LABEL = torch.load(label_pickle_path)
+
+        with open(text_pickle_path, "rb") as f:
+            self.TEXT = dill.load(f)
+
+        with open(label_pickle_path, "rb") as f:
+            self.LABEL = dill.load(f)
+
+        self.n_vocab = len(self.TEXT.vocab.itos)
+
+    def save_fields(self, folder_path=None):
+        if folder_path is None:
+            folder_path = self.data_folder
+
+        text_pickle_path = os.path.join(folder_path, 'text.pl')
+        label_pickle_path = os.path.join(folder_path, 'label.pl')
+
+        # torch.save(self.TEXT, text_pickle_path)
+        # torch.save(self.LABEL, label_pickle_path)
+
+        with open(text_pickle_path, "wb") as f:
+            dill.dump(self.TEXT, f)
+
+        with open(label_pickle_path, "wb") as f:
+            dill.dump(self.LABEL, f)
 
     def get_vocab_vectors(self):
         return self.TEXT.vocab.vectors
@@ -201,125 +272,13 @@ class Dataset:
 #
 
 
-# Yelp
-
-## Prepare
-
-
-def prepare_yelp_data():
-    data_path = os.path.join(DATA_FOLDER_PATH, "reviews.csv")
-    # data_path_txt = os.path.join(DATA_FOLDER_PATH, 'reviews.txt')
-    cols = ["text", "stars"]
-    index_col = 0
-    nrows = 500000
-
-    df = pd.read_csv(data_path, usecols=cols, sep=",", index_col=index_col, nrows=nrows)
-    df.reset_index(inplace=True)
-
-    # print(df.shape)
-
-    df.rename(columns={"stars": "label"}, inplace=True)
-    df.drop(index=df[df["label"] == 3.0].index, axis=0, inplace=True)
-
-    # print(df.shape)
-
-    labels = df["label"].values
-    labels[labels == 2] = 0
-    labels[labels == 1] = 0
-    labels[labels == 5] = 0
-    labels[labels == 4] = 0
-
-    df["label"] = labels
-
-    texts = df["text"].values
-
-    for i in range(len(texts)):
-        texts[i] = " ".join(texts[i].split("\n"))
-
-    # with open(data_path_txt, 'w') as f:
-    #     f.write('\n'.join(texts))
-
-    labels_expanded = []
-    texts_expanded = []
-
-    for text, label in zip(texts, labels):
-        text = " ".join(text.split("\n"))
-        words = text.split(" ")
-        words_splitted = [words[i : i + 15] for i in range(0, len(words) - 15, 15)]
-        labels_splitted = len(words_splitted) * [label]
-
-        # print(words)
-        # print(words_splitted)
-        # print(labels_splitted)
-        # print(len(words))
-        # print(len(words_splitted))
-        # print(len(labels_splitted))
-
-        labels_expanded += labels_splitted
-        texts_expanded += [" ".join(ws) for ws in words_splitted]
-
-    df_new = pd.DataFrame()
-    df_new["label"] = labels_expanded
-    df_new["text"] = texts_expanded
-
-    df_train, df_test = train_test_split(df_new, test_size=0.2)
-    df_train, df_val = train_test_split(df_train, test_size=0.1)
-
-    # df_train = df.sample(frac=0.8, random_state=200)
-    # df_test = df.drop(df_train.index)
-    #
-    # df_train = df_train.sample(frac=0.9, random_state=200)
-    # df_val = df_train.drop(df_train.index)
-
-    print(df_train.head())
-
-    df_train.reset_index(inplace=True, drop=True)
-    df_test.reset_index(inplace=True, drop=True)
-    df_val.reset_index(inplace=True, drop=True)
-
-    print(df_train.shape)
-    print(df_test.shape)
-    print(df_val.shape)
-
-    print(df_train.head())
-
-    df_train.to_csv(
-        os.path.join(DATA_FOLDER_PATH, "reviews_train.csv"),
-        index=False,
-        quoting=csv.QUOTE_NONNUMERIC,
-    )
-    df_test.to_csv(
-        os.path.join(DATA_FOLDER_PATH, "reviews_test.csv"),
-        index=False,
-        quoting=csv.QUOTE_NONNUMERIC,
-    )
-    df_val.to_csv(
-        os.path.join(DATA_FOLDER_PATH, "reviews_val.csv"),
-        index=False,
-        quoting=csv.QUOTE_NONNUMERIC,
-    )
-
-
-## Dataset
-
-tokenize = lambda x: x.split(" ")
-
-TEXT = Field(sequential=True, tokenize=tokenize, lower=True)
-LABEL = Field(sequential=False, use_vocab=False)
-
-cols = ["text", "stars"]
-
-all_datafields = [("stars", LABEL), ("text", TEXT)]
-
-# print(all_datafields)
-
-
-def get_yelp_data(field_text, field_label):
+def get_yelp_data(field_text, field_label,
+                  data_folder, train, test, val):
     train, val, test = TabularDataset.splits(
-        path=DATA_FOLDER_PATH,
-        train="reviews_train.csv",
-        validation="reviews_val.csv",
-        test="reviews_test.csv",
+        path=data_folder,
+        train=train,
+        validation=val,
+        test=test,
         format="csv",
         skip_header=True,
         fields=[("label", field_label), ("text", field_text)],
@@ -328,20 +287,16 @@ def get_yelp_data(field_text, field_label):
     return train, val, test
 
 
-# tst_datafields = [('text', TEXT)]
-#
-# tst = TabularDataset(
-#     path=DATA_FOLDER_PATH,  # the file path
-#     format='csv',
-#     skip_header=True,
-#     # if your csv header has a header, make sure to pass this to ensure it doesn't get proceesed as data!
-#     fields=tst_datafields)
-
-
 class YelpDataset(Dataset):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, get_data_cb=get_yelp_data)
+    def __init__(self,
+                 data_folder=DATA_FOLDER_PATH,
+                 train="reviews_train.csv",
+                 test="reviews_val.csv",
+                 val="reviews_test.csv",
+                 *args, **kwargs):
 
+        def get_yelp_data_cb(field_text, field_label):
+            return get_yelp_data(field_text, field_label, data_folder, train, test, val)
 
-if __name__ == "__main__":
-    prepare_yelp_data()
+        super().__init__(*args, **kwargs, get_data_cb=get_yelp_data_cb)
+        self.data_folder = data_folder

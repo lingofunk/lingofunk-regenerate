@@ -1,4 +1,6 @@
 from itertools import chain
+import sys
+import os
 
 import numpy as np
 
@@ -6,6 +8,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..'))
+
+from lingofunk_regenerate.constants import (
+    DROPOUT,
+MAX_NUM_WORDS_TO_FILTER
+)
 
 
 class RNN_VAE(nn.Module):
@@ -21,12 +31,12 @@ class RNN_VAE(nn.Module):
         h_dim,
         z_dim,
         c_dim,
-        p_word_dropout=0.1,
+        p_word_dropout=DROPOUT,
         unk_idx=0,
         pad_idx=1,
         start_idx=2,
         eos_idx=3,
-        max_sent_len=15,
+        max_sent_len=MAX_NUM_WORDS_TO_FILTER,
         pretrained_embeddings=None,
         freeze_embeddings=False,
         gpu=False,
@@ -55,6 +65,11 @@ class RNN_VAE(nn.Module):
             self.word_emb = nn.Embedding(n_vocab, h_dim, self.PAD_IDX)
         else:
             self.emb_dim = pretrained_embeddings.size(1)
+
+            print(n_vocab)
+            print(self.emb_dim)
+            print(self.PAD_IDX)
+
             self.word_emb = nn.Embedding(n_vocab, self.emb_dim, self.PAD_IDX)
 
             # Set pretrained embeddings

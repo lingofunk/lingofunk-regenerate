@@ -9,7 +9,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from constants import project_folder
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..'))
+
 from lingofunk_regenerate.constants import (
     BETA,
     C_DIM,
@@ -26,8 +29,8 @@ from lingofunk_regenerate.constants import (
     NUM_ITERATIONS_TOTAL,
     Z_DIM,
 )
-from lingofunk_regenerate.datasets import YelpDataset as Dataset
 
+from lingofunk_regenerate.datasets import YelpDataset as Dataset
 # from lingofunk_regenerate.datasets import HaikuDataset as Dataset
 from lingofunk_regenerate.model import RNN_VAE
 

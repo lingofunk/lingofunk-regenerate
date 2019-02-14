@@ -4,26 +4,29 @@ import os
 import re
 import sys
 import time
+import torch
 
 import numpy as np
 import tensorflow as tf
 from flask import Flask, jsonify, request
 
-import torch
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..'))
+
 from lingofunk_regenerate import tests as tests
 from lingofunk_regenerate.constants import (
     C_DIM,
     DROPOUT,
     H_DIM,
     MODELS_FOLDER_PATH,
+    DATA_FOLDER_PATH,
     PORT_DEFAULT,
     Z_DIM,
 )
 from lingofunk_regenerate.datasets import YelpDataset as Dataset
-
-# from lingofunk_regenerate.datasets import HaikuDataset as Dataset
 from lingofunk_regenerate.model import RNN_VAE
 from lingofunk_regenerate.utils import log as _log
+
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -153,7 +156,22 @@ def _parse_args():
         type=str,
         required=False,
         default=MODELS_FOLDER_PATH,
-        help="Folder to load models (weights, vocabs, configs) from",
+        help="Folder to load models from",
+    )
+
+    parser.add_argument(
+        "--data-folder",
+        type=str,
+        required=False,
+        default=DATA_FOLDER_PATH,
+        help="Data folder",
+    )
+
+    parser.add_argument(
+        "--load-fields",
+        action='store_true',
+        required=False,
+        help="Load fields instead of creating dataset in ordinary way (read all csv files, build vocab etc.)",
     )
 
     parser.add_argument(
@@ -168,13 +186,17 @@ def _set_seed(seed):
     torch.manual_seed(seed)
 
 
-def _load_model(model_name, models_folder, gpu=False):
+def _load_model(model_name, models_folder, data_folder, load_fields=True, gpu=False):
     # TODO: pass to config
 
     global model
     global dataset
 
-    dataset = Dataset()
+    if load_fields:
+        dataset = Dataset(data_folder=data_folder)
+        dataset.load_fields()
+    else:
+        dataset = Dataset(data_folder=data_folder, init_from_data=True)
 
     h_dim = H_DIM
     z_dim = Z_DIM
@@ -218,7 +240,8 @@ def _main():
     args = _parse_args()
 
     _set_seed(args.seed)
-    _load_model(args.model, args.models_folder, args.gpu)
+    _load_model(args.model, args.models_folder, args.data_folder,
+                args.load_fields, args.gpu)
     # _test_model(args.gpu)
 
     app.run(host="0.0.0.0", port=args.port, debug=True, threaded=True)
